@@ -16,6 +16,8 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import static java.lang.StrictMath.toIntExact;
+
 /**
  * Created by Ito Perez on 2/18/2018.
  */
@@ -60,21 +62,23 @@ public class AppFragment extends Fragment{
             editor.putString("maximum", "0");
             editor.apply();
         }
+        String minSpin = String.valueOf(Integer.valueOf(minimum)-10);
+        String maxSpin = maximum;
 
         //-----------------------------------------------------------------------------------------------------
 
         spinner_min = (Spinner) view.findViewById(R.id.spinnerMin);
 
-        adapter_min = ArrayAdapter.createFromResource(getActivity(), R.array.select_temperature, android.R.layout.simple_spinner_item);
+        adapter_min = ArrayAdapter.createFromResource(getActivity(), R.array.select_temperature_min, android.R.layout.simple_spinner_item);
         adapter_min.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinner_min.setAdapter(adapter_min);
-        spinner_min.setSelection(Integer.parseInt(minimum));
+        spinner_min.setSelection(Integer.parseInt(minSpin));
 
         spinner_min.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                minString = Long.toString(parent.getItemIdAtPosition(position));
-                minLong = parent.getItemIdAtPosition(position);
+                minString = Long.toString(parent.getItemIdAtPosition(position + 10));
+                minLong = parent.getItemIdAtPosition(position + 10);
             }
 
             @Override
@@ -86,10 +90,10 @@ public class AppFragment extends Fragment{
         //-----------------------------------------------------------------------------------------------------
         spinner_max = (Spinner) view.findViewById(R.id.spinnerMax);
 
-        adapter_max = ArrayAdapter.createFromResource(getActivity(), R.array.select_temperature, android.R.layout.simple_spinner_item);
+        adapter_max = ArrayAdapter.createFromResource(getActivity(), R.array.select_temperature_max, android.R.layout.simple_spinner_item);
         adapter_max.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinner_max.setAdapter(adapter_max);
-        spinner_max.setSelection(Integer.parseInt(maximum));
+        spinner_max.setSelection(Integer.parseInt(maxSpin));
 
         spinner_max.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override

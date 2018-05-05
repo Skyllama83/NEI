@@ -4,14 +4,23 @@ import android.Manifest;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Message;
 import android.os.SystemClock;
 import android.support.annotation.NonNull;
 import android.support.v13.app.ActivityCompat;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -20,15 +29,26 @@ import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.ListView;
 import android.widget.NumberPicker;
+import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.UnsupportedEncodingException;
+import java.text.DateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+
 import static java.lang.Thread.sleep;
 
-public class HomeActivity extends AppCompatActivity {
+public class HomeActivity extends AppCompatActivity implements RadioGroup.OnCheckedChangeListener {
 
     // permissions
     public static final int BLE_REQUEST = 12345;
@@ -50,6 +70,7 @@ public class HomeActivity extends AppCompatActivity {
     NumberPicker temperatureNumberPicker;
     TextView showOnOff;
     TextView showPayload;
+    TextView showRX;
     private Button connectdisconnectDEVICE;
 
     // globals
@@ -62,6 +83,27 @@ public class HomeActivity extends AppCompatActivity {
     String Payload;
     int min;
     int max;
+
+    // BLE things
+    //private static final int REQUEST_SELECT_DEVICE = 1;
+    //private static final int REQUEST_ENABLE_BT = 2;
+    private static final int UART_PROFILE_READY = 10;
+    //public static final String TAG = "nRFUART";
+    private static final int UART_PROFILE_CONNECTED = 20;
+    private static final int UART_PROFILE_DISCONNECTED = 21;
+    private static final int STATE_OFF = 10;
+
+    TextView mRemoteRssiVal;
+    RadioGroup mRg;
+    private int mState = UART_PROFILE_DISCONNECTED;
+    //private UartService mService = null;
+    //private BluetoothDevice mDevice = null;
+    //private BluetoothAdapter mBtAdapter = null;
+    private ListView messageListView;
+    private ArrayAdapter<String> listAdapter;
+    //private Button btnConnectDisconnect,btnSend;
+    private EditText edtMessage;
+    boolean ready = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -76,10 +118,17 @@ public class HomeActivity extends AppCompatActivity {
 
         mBtAdapter = BluetoothAdapter.getDefaultAdapter();
 
+        // show disclaimer first time app ever opens
+        SharedPreferences sharedPrefDis = getSharedPreferences("homeInfo", Context.MODE_PRIVATE);
+        String disclaimer = sharedPrefDis.getString("disclaimer", "false");
+        if (disclaimer == "false") {
+            disclaimer();
+        }
+
         // get min and max temperatures set
-        SharedPreferences sharedPref = getSharedPreferences("appInfo", Context.MODE_PRIVATE);
-        String minimum = sharedPref.getString("minimum", "");
-        String maximum = sharedPref.getString("maximum", "");
+        SharedPreferences sharedPrefMinMax = getSharedPreferences("appInfo", Context.MODE_PRIVATE);
+        String minimum = sharedPrefMinMax.getString("minimum", "");
+        String maximum = sharedPrefMinMax.getString("maximum", "");
         if ((minimum != "") && (maximum != "")) {
             min = Integer.valueOf(minimum);
             max = Integer.valueOf(maximum);
@@ -87,6 +136,9 @@ public class HomeActivity extends AppCompatActivity {
             min = 20;
             max = 0;
         }
+
+        // set Payload
+        Payload = Integer.toString(Integer.valueOf(((GlobalDynamicStrings) this.getApplication()).getPayload()) - max );
 
         //-----------------------------------------------------------------------------------------------------
         // power on/off set
@@ -99,15 +151,6 @@ public class HomeActivity extends AppCompatActivity {
         // power on/off debugger
         showOnOff = (TextView) findViewById(R.id.showOnOff);
         showOnOff.setText("On/Off: " + ((GlobalDynamicStrings) this.getApplication()).getOnOff());
-        //showOnOff.setText("On/Off: " + gds.getOnOff());
-
-        //-----------------------------------------------------------------------------------------------------
-        connectdisconnectDEVICE.setOnClickListener(new View.OnClickListener() {
-             @Override
-             public void onClick(View view) {
-                 permissionBLE();
-             }
-         });
 
         //-----------------------------------------------------------------------------------------------------
         // called when the user presses the [[Data Chart]] Button to open Data Chart page
@@ -133,35 +176,420 @@ public class HomeActivity extends AppCompatActivity {
         // number picker for setting output temperature
         temperatureNumberPicker = (NumberPicker)findViewById(R.id.number_picker_temperature);
         String[] values = this.getResources().getStringArray(R.array.select_temperature);
-        for (int i = 0; i <= 20; i++) {
-            if ((i < max) || (i > min)) {
-                values[i] = "-";
-            }
-        }
+        ArrayList<String> newValues = new ArrayList<String>(Arrays.asList(values));
+        // clear top max part of ArrayList
+        newValues.subList(0, max).clear();
+        // clear bottom min part of ArrayList
+        newValues.subList((min-max+1), (20-max+1)).clear();
         temperatureNumberPicker.setMinValue(0);
-        temperatureNumberPicker.setMaxValue(values.length - 1);
-        temperatureNumberPicker.setValue(Integer.valueOf(((GlobalDynamicStrings) this.getApplication()).getPayload()));
-        temperatureNumberPicker.setDisplayedValues(values);
+        temperatureNumberPicker.setMaxValue(newValues.size()-1);
+        temperatureNumberPicker.setValue(Integer.valueOf(((GlobalDynamicStrings) this.getApplication()).getPayload()) - max);
+        temperatureNumberPicker.setDisplayedValues(newValues.toArray(new String[0]));
         temperatureNumberPicker.setDescendantFocusability(NumberPicker.FOCUS_BLOCK_DESCENDANTS);
         temperatureNumberPicker.setWrapSelectorWheel(false);
+
+        // number picker debugger set from dynamic memory
+        showPayload = (TextView) findViewById(R.id.showPayload);
+        showPayload.setText("Payload: " + ((GlobalDynamicStrings) this.getApplication()).getPayload());
+
+        // number picker listener
         temperatureNumberPicker.setOnValueChangedListener(new NumberPicker.OnValueChangeListener() {
         @Override
             public void onValueChange(NumberPicker picker, int oldVal, int newVal) {
-                Payload = Integer.toString(newVal);
+                Payload = Integer.toString(newVal + max);
                 changePayload();
+                showPayload.setText("Payload: " + Payload);
+                if (ready) {
+                    sendData();
+                }
             }
         });
-
-        //number picker debugger
-        showPayload = (TextView) findViewById(R.id.showPayload);
-        showPayload.setText("Payload: " + ((GlobalDynamicStrings) this.getApplication()).getPayload());
 
         //-----------------------------------------------------------------------------------------------------
         // warning button
         onWarningButtonClickListener();
 
         //-----------------------------------------------------------------------------------------------------
+        //-----------------------------------------------------------------------------------------------------
+        // BLE things
+        connectdisconnectDEVICE.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                permissionBLE();
+                if (ready) {
+                    sendData();
+                }
+            }
+        });
+
+        //-----------------------------------------------------------------------------------------------------
+        mBtAdapter = BluetoothAdapter.getDefaultAdapter();
+        if (mBtAdapter == null) {
+            Toast.makeText(this, "Bluetooth is not available", Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
+        //messageListView = (ListView) findViewById(R.id.listMessage);
+        //listAdapter = new ArrayAdapter<String>(this, R.layout.message_detail);
+        //messageListView.setAdapter(listAdapter);
+        //messageListView.setDivider(null);
+        //btnConnectDisconnect=(Button) findViewById(R.id.btn_select);
+        //btnSend=(Button) findViewById(R.id.sendButton);
+        //edtMessage = (EditText) findViewById(R.id.sendText);
+        service_init();
+
+
+        /*
+        // Handle Disconnect & Connect button
+        //btnConnectDisconnect.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!mBtAdapter.isEnabled()) {
+                    Log.i(TAG, "onClick - BT not enabled yet");
+                    Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                    startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
+                }
+                else {
+                    if (btnConnectDisconnect.getText().equals("Connect")){
+
+                        //Connect button pressed, open DeviceListActivity class, with popup windows that scan for devices
+
+                        Intent newIntent = new Intent(MainActivity.this, DeviceListActivity.class);
+                        startActivityForResult(newIntent, REQUEST_SELECT_DEVICE);
+                    } else {
+                        //Disconnect button pressed
+                        if (mDevice!=null)
+                        {
+                            mService.disconnect();
+
+                        }
+                    }
+                }
+            }
+        });*/
+        /*
+        // Handle Send button
+        btnSend.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                EditText editText = (EditText) findViewById(R.id.sendText);
+                String message = editText.getText().toString();
+                byte[] value;
+                try {
+                    //send data to service
+                    value = message.getBytes("UTF-8");
+                    mService.writeRXCharacteristic(value);
+                    //Update the log with time stamp
+                    String currentDateTimeString = DateFormat.getTimeInstance().format(new Date());
+                    //listAdapter.add("["+currentDateTimeString+"] TX: "+ message);
+                    //messageListView.smoothScrollToPosition(listAdapter.getCount() - 1);
+                    edtMessage.setText("");
+                } catch (UnsupportedEncodingException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+
+            }
+        });*/
+        if (ready) {
+            sendData();
+        }
+
+        //-----------------------------------------------------------------------------------------------------
+        //-----------------------------------------------------------------------------------------------------
     }
+
+    //-----------------------------------------------------------------------------------------------------
+    //-----------------------------------------------------------------------------------------------------
+    //-----------------------------------------------------------------------------------------------------
+
+    // Handle sending data when on/off is true
+    public void sendData() {
+        if (((GlobalDynamicStrings) this.getApplication()).getOnOff() == "true") {
+            // get payload message to send
+            //EditText editText = (EditText) findViewById(R.id.sendText);
+            String message;
+            if (Integer.valueOf(Payload) < 10) {
+                message = ("0" + Payload);
+            } else {
+                message = (Payload);
+            }
+            Log.d(TAG, "Payload: " + Payload);
+            byte[] value;
+            try {
+                //send data to service
+                value = message.getBytes("UTF-8");
+                mService.writeRXCharacteristic(value);
+                //Update the log with time stamp
+                //String currentDateTimeString = DateFormat.getTimeInstance().format(new Date());
+                //listAdapter.add("["+currentDateTimeString+"] TX: "+ message);
+                //messageListView.smoothScrollToPosition(listAdapter.getCount() - 1);
+                //edtMessage.setText("");
+            } catch (UnsupportedEncodingException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+        }
+    }
+
+    //UART service connected/disconnected
+    private ServiceConnection mServiceConnection = new ServiceConnection() {
+        public void onServiceConnected(ComponentName className, IBinder rawBinder) {
+            mService = ((UartService.LocalBinder) rawBinder).getService();
+            Log.d(TAG, "onServiceConnected mService= " + mService);
+            if (!mService.initialize()) {
+                Log.e(TAG, "Unable to initialize Bluetooth");
+                finish();
+            }
+
+        }
+
+        public void onServiceDisconnected(ComponentName classname) {
+            ////     mService.disconnect(mDevice);
+            mService = null;
+        }
+    };
+
+    private Handler mHandler = new Handler() {
+        @Override
+
+        //Handler events that received from UART service
+        public void handleMessage(Message msg) {
+
+        }
+    };
+
+    private final BroadcastReceiver UARTStatusChangeReceiver = new BroadcastReceiver() {
+
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+
+            final Intent mIntent = intent;
+            //*********************//
+            if (action.equals(UartService.ACTION_GATT_CONNECTED)) {
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        //String currentDateTimeString = DateFormat.getTimeInstance().format(new Date());
+                        Log.d(TAG, "UART_CONNECT_MSG");
+                        connectdisconnectDEVICE.setText("Disconnect form Device");
+                        //edtMessage.setEnabled(true);
+                        //btnSend.setEnabled(true);
+                        ((TextView) findViewById(R.id.deviceSelect)).setText(mDevice.getName()+ " - ready");
+                        ready = true;
+                        //listAdapter.add("["+currentDateTimeString+"] Connected to: "+ mDevice.getName());
+                        //messageListView.smoothScrollToPosition(listAdapter.getCount() - 1);
+                        mState = UART_PROFILE_CONNECTED;
+                    }
+                });
+            }
+
+            //*********************//
+            if (action.equals(UartService.ACTION_GATT_DISCONNECTED)) {
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        //String currentDateTimeString = DateFormat.getTimeInstance().format(new Date());
+                        Log.d(TAG, "UART_DISCONNECT_MSG");
+                        connectdisconnectDEVICE.setText("Connect to Device");
+                        //edtMessage.setEnabled(false);
+                        //btnSend.setEnabled(false);
+                        ((TextView) findViewById(R.id.deviceSelect)).setText("Not Connected");
+                        ready = false;
+                        //listAdapter.add("["+currentDateTimeString+"] Disconnected to: "+ mDevice.getName());
+                        mState = UART_PROFILE_DISCONNECTED;
+                        mService.close();
+                        //setUiState();
+
+                    }
+                });
+            }
+
+
+            //*********************//
+            if (action.equals(UartService.ACTION_GATT_SERVICES_DISCOVERED)) {
+                mService.enableTXNotification();
+            }
+            //*********************//
+            if (action.equals(UartService.ACTION_DATA_AVAILABLE)) {
+
+                final byte[] txValue = intent.getByteArrayExtra(UartService.EXTRA_DATA);
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        try {
+                            String text = new String(txValue, "UTF-8");
+                            // number picker debugger set from dynamic memory
+                            showRX = (TextView) findViewById(R.id.showRX);
+                            showRX.setText(" | RX: " + text);
+                            //String currentDateTimeString = DateFormat.getTimeInstance().format(new Date());
+                            //listAdapter.add("["+currentDateTimeString+"] RX: "+text);
+                            //messageListView.smoothScrollToPosition(listAdapter.getCount() - 1);
+
+                        } catch (Exception e) {
+                            Log.e(TAG, e.toString());
+                        }
+                    }
+                });
+            }
+            //*********************//
+            if (action.equals(UartService.DEVICE_DOES_NOT_SUPPORT_UART)){
+                showMessage("Device doesn't support UART. Disconnecting");
+                mService.disconnect();
+            }
+
+
+        }
+    };
+
+    private void service_init() {
+        Intent bindIntent = new Intent(this, UartService.class);
+        bindService(bindIntent, mServiceConnection, Context.BIND_AUTO_CREATE);
+
+        LocalBroadcastManager.getInstance(this).registerReceiver(UARTStatusChangeReceiver, makeGattUpdateIntentFilter());
+    }
+    private static IntentFilter makeGattUpdateIntentFilter() {
+        final IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(UartService.ACTION_GATT_CONNECTED);
+        intentFilter.addAction(UartService.ACTION_GATT_DISCONNECTED);
+        intentFilter.addAction(UartService.ACTION_GATT_SERVICES_DISCOVERED);
+        intentFilter.addAction(UartService.ACTION_DATA_AVAILABLE);
+        intentFilter.addAction(UartService.DEVICE_DOES_NOT_SUPPORT_UART);
+        return intentFilter;
+    }
+    @Override
+    public void onStart() {
+        super.onStart();
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        Log.d(TAG, "onDestroy()");
+
+        try {
+            LocalBroadcastManager.getInstance(this).unregisterReceiver(UARTStatusChangeReceiver);
+        } catch (Exception ignore) {
+            Log.e(TAG, ignore.toString());
+        }
+        unbindService(mServiceConnection);
+        mService.stopSelf();
+        mService= null;
+
+    }
+
+    @Override
+    protected void onStop() {
+        Log.d(TAG, "onStop");
+        super.onStop();
+    }
+
+    @Override
+    protected void onPause() {
+        Log.d(TAG, "onPause");
+        super.onPause();
+    }
+
+    @Override
+    protected void onRestart() {
+        super.onRestart();
+        Log.d(TAG, "onRestart");
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        Log.d(TAG, "onResume");
+        if (!mBtAdapter.isEnabled()) {
+            Log.i(TAG, "onResume - BT not enabled yet");
+            Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
+        }
+
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        switch (requestCode) {
+
+            case REQUEST_SELECT_DEVICE:
+                //When the DeviceListActivity return, with the selected device address
+                if (resultCode == Activity.RESULT_OK && data != null) {
+                    String deviceAddress = data.getStringExtra(BluetoothDevice.EXTRA_DEVICE);
+                    mDevice = BluetoothAdapter.getDefaultAdapter().getRemoteDevice(deviceAddress);
+
+                    Log.d(TAG, "... onActivityResultdevice.address==" + mDevice + "mserviceValue" + mService);
+                    ((TextView) findViewById(R.id.deviceSelect)).setText(mDevice.getName()+ " - connecting");
+                    ready = false;
+                    mService.connect(deviceAddress);
+
+
+                }
+                break;
+            case REQUEST_ENABLE_BT:
+                // When the request to enable Bluetooth returns
+                if (resultCode == Activity.RESULT_OK) {
+                    Toast.makeText(this, "Bluetooth has turned on ", Toast.LENGTH_SHORT).show();
+
+                } else {
+                    // User did not enable Bluetooth or an error occurred
+                    Log.d(TAG, "BT not enabled");
+                    Toast.makeText(this, "Problem in BT Turning ON ", Toast.LENGTH_SHORT).show();
+                    finish();
+                }
+                break;
+            default:
+                Log.e(TAG, "wrong request code");
+                break;
+        }
+    }
+
+    @Override
+    public void onCheckedChanged(RadioGroup group, int checkedId) {
+
+    }
+
+
+    private void showMessage(String msg) {
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (mState == UART_PROFILE_CONNECTED) {
+            Intent startMain = new Intent(Intent.ACTION_MAIN);
+            startMain.addCategory(Intent.CATEGORY_HOME);
+            startMain.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(startMain);
+            showMessage("nRFUART's running in background.\n             Disconnect to exit");
+        }
+        /*
+        else {
+            new android.app.AlertDialog.Builder(this)
+                    .setIcon(android.R.drawable.ic_dialog_alert)
+                    .setTitle(R.string.popup_title)
+                    .setMessage(R.string.popup_message)
+                    .setPositiveButton(R.string.popup_yes, new DialogInterface.OnClickListener()
+                    {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            finish();
+                        }
+                    })
+                    .setNegativeButton(R.string.popup_no, null)
+                    .show();
+        }*/
+    }
+
+    //-----------------------------------------------------------------------------------------------------
+    //-----------------------------------------------------------------------------------------------------
+    //-----------------------------------------------------------------------------------------------------
+
+
+
 
     // creates the action bar menu ----------------------------------------------------------------------------
     @Override
@@ -210,9 +638,11 @@ public class HomeActivity extends AppCompatActivity {
     public void changePayload() {
         if (Integer.valueOf(Payload) < max){
             ((GlobalDynamicStrings) this.getApplication()).setPayload(Integer.toString(max));
+            Payload = Integer.toString(max);
         }
         else if (Integer.valueOf(Payload) > min){
             ((GlobalDynamicStrings) this.getApplication()).setPayload(Integer.toString(min));
+            Payload = Integer.toString(min);
         }
         else {
             ((GlobalDynamicStrings) this.getApplication()).setPayload(Payload);
@@ -226,28 +656,38 @@ public class HomeActivity extends AppCompatActivity {
                 new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        AlertDialog.Builder a_builder = new AlertDialog.Builder(HomeActivity.this);
-                        a_builder.setMessage("Unto thee know thine own self and be'eth not an incompetent fool. Thou shan't use this app/device if thee cannot handle the fire and ice! " +
-                                             "Proceed with assurance that thee will perish with or without our aid. Acknowledge and embrace the uncertainty. Proceed at thine own gamble. Would you like to continue?")
-                                .setCancelable(false)
-                                .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
-                                    @Override
-                                    public void onClick(DialogInterface dialogInterface, int i) {
-                                        dialogInterface.cancel();
-                                    }
-                                })
-                                .setNegativeButton("No", new DialogInterface.OnClickListener() {
-                                    @Override
-                                    public void onClick(DialogInterface dialogInterface, int i) {
-                                        finish();
-                                    }
-                                });
-                        AlertDialog alert = a_builder.create();
-                        alert.setTitle("WARNING (can't sue me now!)");
-                        alert.show();
+                        disclaimer();
                     }
                 }
         );
+    }
+
+    // disclaimer dialog box
+    public void disclaimer() {
+        AlertDialog.Builder a_builder = new AlertDialog.Builder(HomeActivity.this);
+        a_builder.setMessage("Unto thee know thine own self and be'eth not an incompetent fool. Thou shan't use this app/device if thee cannot handle the fire and ice! " +
+                "Proceed with assurance that thee will perish with or without our aid. Acknowledge and embrace the uncertainty. Proceed at thine own gamble. Would you like to continue?")
+                .setCancelable(false)
+                .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        SharedPreferences sharedPrefDis = getSharedPreferences("homeInfo", Context.MODE_PRIVATE);
+                        String disclaimer = sharedPrefDis.getString("disclaimer", "false");
+                        SharedPreferences.Editor editor = sharedPrefDis.edit();
+                        editor.putString("disclaimer", "true");
+                        editor.apply();
+                        dialogInterface.cancel();
+                    }
+                })
+                .setNegativeButton("No", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        finish();
+                    }
+                });
+        AlertDialog alert = a_builder.create();
+        alert.setTitle("WARNING (can't sue me now!)");
+        alert.show();
     }
 
     // checks BLE permissions ---------------------------------------------------------------------------------
@@ -304,12 +744,12 @@ public class HomeActivity extends AppCompatActivity {
         }
         else {
             if (connectdisconnectDEVICE.getText().equals("Connect to Device")){
-                connectdisconnectDEVICE.setText("Disconnect from Device");
+                //connectdisconnectDEVICE.setText("Disconnect from Device");
                 //Connect button pressed, open DeviceListActivity class, with popup windows that scan for devices
                 Intent newIntent = new Intent(HomeActivity.this, DeviceListActivity.class);
                 startActivityForResult(newIntent, REQUEST_SELECT_DEVICE);
             } else {
-                connectdisconnectDEVICE.setText("Connect from Device");
+                //connectdisconnectDEVICE.setText("Connect to Device");
                 //Disconnect button pressed
                 if (mDevice!=null)
                 {
@@ -318,6 +758,24 @@ public class HomeActivity extends AppCompatActivity {
             }
         }
     }
+
+
+
+    //-----------------------------------------------------------------------------------------------------
+    //-----------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+    //-----------------------------------------------------------------------------------------------------
+    //-----------------------------------------------------------------------------------------------------
 
 
 

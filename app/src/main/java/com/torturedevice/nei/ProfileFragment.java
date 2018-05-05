@@ -77,6 +77,8 @@ public class ProfileFragment extends Fragment{
                     editor.putString("username", usernameInput.getText().toString());
                     editor.apply();
 
+                    usernameInput.setHint(usernameInput.getText().toString());
+
                     Toast.makeText(getActivity(), "USERNAME HAS BEEN SAVED", Toast.LENGTH_SHORT).show();
                 }
             }
@@ -98,6 +100,8 @@ public class ProfileFragment extends Fragment{
                     SharedPreferences.Editor editor = sharedPref.edit();
                     editor.putString("email", emailInput.getText().toString());
                     editor.apply();
+
+                    emailInput.setHint(emailInput.getText().toString());
 
                     Toast.makeText(getActivity(), "EMAIL HAS BEEN SAVED", Toast.LENGTH_SHORT).show();
                 }
@@ -138,6 +142,7 @@ public class ProfileFragment extends Fragment{
                         SharedPreferences.Editor editor = sharedPref.edit();
                         editor.putString("email", emailInput.getText().toString());
                         editor.apply();
+                        emailInput.setHint(emailInput.getText().toString());
                         Toast.makeText(getActivity(), "EMAIL HAS BEEN SAVED, USERNAME IS EMPTY", Toast.LENGTH_SHORT).show();
                     }
                     if ( (checkIfEmptyString(usernameInput.getText().toString()) == false)  && (checkIfEmptyString(emailInput.getText().toString()) == true) ){
@@ -148,6 +153,7 @@ public class ProfileFragment extends Fragment{
                         SharedPreferences.Editor editor = sharedPref.edit();
                         editor.putString("username", usernameInput.getText().toString());
                         editor.apply();
+                        usernameInput.setHint(usernameInput.getText().toString());
                         Toast.makeText(getActivity(), "USERNAME HAS BEEN SAVED, EMAIL IS EMPTY", Toast.LENGTH_SHORT).show();
                     }
                 }
@@ -159,7 +165,8 @@ public class ProfileFragment extends Fragment{
                     editor.putString("username", usernameInput.getText().toString());
                     editor.putString("email", emailInput.getText().toString());
                     editor.apply();
-
+                    usernameInput.setHint(usernameInput.getText().toString());
+                    emailInput.setHint(emailInput.getText().toString());
                     Toast.makeText(getActivity(), "PROFILE SETTING HAVE BEEN SAVED", Toast.LENGTH_SHORT).show();
                 }
             }

@@ -65,6 +65,34 @@
         <item>-10</item>
     </string-array>
 
+    <string-array name="select_temperature_max">
+        <item>10</item>
+        <item>9</item>
+        <item>8</item>
+        <item>7</item>
+        <item>6</item>
+        <item>5</item>
+        <item>4</item>
+        <item>3</item>
+        <item>2</item>
+        <item>1</item>
+        <item>0</item>
+    </string-array>
+
+    <string-array name="select_temperature_min">
+        <item>0</item>
+        <item>-1</item>
+        <item>-2</item>
+        <item>-3</item>
+        <item>-4</item>
+        <item>-5</item>
+        <item>-6</item>
+        <item>-7</item>
+        <item>-8</item>
+        <item>-9</item>
+        <item>-10</item>
+    </string-array>
+
     // for ProfileFragment Buttons and Plain Text
     <string name="edit_username">Enter a Username</string>
     <string name="edit_email">Enter an Email</string>

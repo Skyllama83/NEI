@@ -4,6 +4,7 @@ import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.Menu;
@@ -14,6 +15,8 @@ import android.widget.NumberPicker;
 import android.widget.TextView;
 import android.widget.TimePicker;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 
 public class PresetsActivity extends AppCompatActivity {
@@ -32,6 +35,8 @@ public class PresetsActivity extends AppCompatActivity {
     String PayloadPreset = "10";
     String PresetState;
     String TempSet;
+    int min;
+    int max;
 
     Boolean on_off;
     String T = "true";
@@ -106,6 +111,9 @@ public class PresetsActivity extends AppCompatActivity {
                     am_pm = "PM";
                 }
 
+                // set Payload Preset
+                changePayloadPreset();
+
                 // method that changes the update text with global dynamic strings
                 PresetState = ("Preset set to: " + hour_string + ":" + minute_string + " " + am_pm);
                 changePresetState();
@@ -127,9 +135,6 @@ public class PresetsActivity extends AppCompatActivity {
 
                 // set the preset manager
                 preset_manager.set(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), pending_intent);
-
-                // set Payload Preset
-                changePayloadPreset();
             }
         });
 
@@ -165,21 +170,38 @@ public class PresetsActivity extends AppCompatActivity {
             }
         });
 
+        // get min and max temperatures set
+        SharedPreferences sharedPref = getSharedPreferences("appInfo", Context.MODE_PRIVATE);
+        String minimum = sharedPref.getString("minimum", "");
+        String maximum = sharedPref.getString("maximum", "");
+        if ((minimum != "") && (maximum != "")) {
+            min = Integer.valueOf(minimum);
+            max = Integer.valueOf(maximum);
+        } else {
+            min = 20;
+            max = 0;
+        }
+
+
         //-----------------------------------------------------------------------------------------------------
         // number picker for setting output temperature in preset
             temperaturePresetNumberPicker = (NumberPicker)findViewById(R.id.number_picker_temperature_preset);
-            //String[] values = new String[] { "10", "9", "8", "7", "6", "5", "4", "3", "2", "1", "0", "-1", "-2", "-3", "-4", "-5", "-6", "-7", "-8", "-9", "-10"};
             String[] values = this.getResources().getStringArray(R.array.select_temperature);
+            ArrayList<String> newValues = new ArrayList<String>(Arrays.asList(values));
+            // clear top max part of ArrayList
+            newValues.subList(0, max).clear();
+            // clear bottom min part of ArrayList
+            newValues.subList((min-max+1), (20-max+1)).clear();
             temperaturePresetNumberPicker.setMinValue(0);
-            temperaturePresetNumberPicker.setMaxValue(values.length - 1);
-            temperaturePresetNumberPicker.setValue(10);
-            temperaturePresetNumberPicker.setDisplayedValues(values);
+            temperaturePresetNumberPicker.setMaxValue(newValues.size() - 1);
+            temperaturePresetNumberPicker.setValue(10-max);
+            temperaturePresetNumberPicker.setDisplayedValues(newValues.toArray(new String[0]));
             temperaturePresetNumberPicker.setDescendantFocusability(NumberPicker.FOCUS_BLOCK_DESCENDANTS);
             temperaturePresetNumberPicker.setWrapSelectorWheel(false);
             temperaturePresetNumberPicker.setOnValueChangedListener(new NumberPicker.OnValueChangeListener() {
                 @Override
                 public void onValueChange(NumberPicker picker, int oldVal, int newVal) {
-                    PayloadPreset = Integer.toString(newVal);
+                    PayloadPreset = Integer.toString(newVal + max);
                    }
             });
 
@@ -201,8 +223,17 @@ public class PresetsActivity extends AppCompatActivity {
     }
 
     public void changePayloadPreset() {
-        ((GlobalDynamicStrings) this.getApplication()).setPayloadPreset(PayloadPreset);
-        //gds.setPayload(Payload);
+        if (Integer.valueOf(PayloadPreset) < max){
+            ((GlobalDynamicStrings) this.getApplication()).setPayloadPreset(Integer.toString(max));
+            PayloadPreset = Integer.toString(max);
+        }
+        else if (Integer.valueOf(PayloadPreset) > min){
+            ((GlobalDynamicStrings) this.getApplication()).setPayloadPreset(Integer.toString(min));
+            PayloadPreset = Integer.toString(min);
+        }
+        else {
+            ((GlobalDynamicStrings) this.getApplication()).setPayloadPreset(PayloadPreset);
+        }
         System.out.println("Preset Payload changed.");
     }
 
