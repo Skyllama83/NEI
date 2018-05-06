@@ -256,34 +256,35 @@ public class PresetsActivity extends AppCompatActivity {
     public boolean onCreateOptionsMenu(Menu menu) {
         // inflate the menu (settings); adds items to action bar if present
         getMenuInflater().inflate(R.menu.menu_all, menu);
-
-        MenuItem on = menu.findItem(R.id.action_powerStateOff);
-        MenuItem off = menu.findItem(R.id.action_powerStateOn);
-
-        off.setVisible(on_off);
-        on.setVisible(!on_off);
-
+        // set correct powerState icon
+        MenuItem ON_OFF = menu.findItem(R.id.action_powerState);
+        if (!on_off) {
+            ON_OFF.setIcon(R.drawable.poweroff);
+            ON_OFF.setTitle("Power OFF");
+        } else {
+            ON_OFF.setIcon(R.drawable.poweron);
+            ON_OFF.setTitle("Power ON");
+        }
         return true;
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         // toggle on_off when icon is pressed
-        if (item.getItemId() == R.id.action_powerStateOff || item.getItemId() == R.id.action_powerStateOn) {
+        if (item.getItemId() == R.id.action_powerState) {
             on_off = !on_off;
 
             // change icon when pressed/not pressed and set on_off string in GlobalDynamicStrings
             if (on_off) {
                 item.setIcon(R.drawable.poweron);
-                //gds.setOnOff(T);
-
+                item.setTitle("Power ON");
                 ((GlobalDynamicStrings) this.getApplication()).setOnOff(T);
-            } else  {
+            } else {
                 item.setIcon(R.drawable.poweroff);
-                //gds.setOnOff(F);
-
+                item.setTitle("Power OFF");
                 ((GlobalDynamicStrings) this.getApplication()).setOnOff(F);
             }
+
         }
         return super.onOptionsItemSelected(item);
     }

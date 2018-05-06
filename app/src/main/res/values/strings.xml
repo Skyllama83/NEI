@@ -38,7 +38,7 @@
 
     // for action bar HomeActivity / All
     <string name="action_settings">Settings</string>
-    <string name="action_power">Power ON/OFF</string>
+    <string name="action_on_off">Power OFF</string>
 
     // for HomeActivity / PresetsActivity / AppFragment
     <string-array name="select_temperature">

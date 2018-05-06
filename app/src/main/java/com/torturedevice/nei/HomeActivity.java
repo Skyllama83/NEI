@@ -70,6 +70,7 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
     NumberPicker temperatureNumberPicker;
     TextView showOnOff;
     TextView showPayload;
+    TextView showTX;
     TextView showRX;
     private Button connectdisconnectDEVICE;
 
@@ -320,6 +321,7 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
                 //send data to service
                 value = message.getBytes("UTF-8");
                 mService.writeRXCharacteristic(value);
+                showTX.setText("TX: " + message);
                 //Update the log with time stamp
                 //String currentDateTimeString = DateFormat.getTimeInstance().format(new Date());
                 //listAdapter.add("["+currentDateTimeString+"] TX: "+ message);
@@ -596,13 +598,15 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
     public boolean onCreateOptionsMenu(Menu menu) {
         // inflate the menu (settings); adds items to action bar if present
         getMenuInflater().inflate(R.menu.menu_home, menu);
-
-        MenuItem on = menu.findItem(R.id.action_powerStateOff);
-        MenuItem off = menu.findItem(R.id.action_powerStateOn);
-
-        off.setVisible(on_off);
-        on.setVisible(!on_off);
-
+        // set correct powerState icon
+        MenuItem ON_OFF = menu.findItem(R.id.action_powerState);
+        if (!on_off) {
+            ON_OFF.setIcon(R.drawable.poweroff);
+            ON_OFF.setTitle("Power OFF");
+        } else {
+            ON_OFF.setIcon(R.drawable.poweron);
+            ON_OFF.setTitle("Power ON");
+        }
         return true;
     }
 
@@ -615,23 +619,25 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
         }
 
         // toggle on_off when icon is pressed
-        if (item.getItemId() == R.id.action_powerStateOff || item.getItemId() == R.id.action_powerStateOn) {
+        if (item.getItemId() == R.id.action_powerState) {
             on_off = !on_off;
 
             // change icon when pressed/not pressed and set on_off string in GlobalDynamicStrings
             if (on_off) {
                 item.setIcon(R.drawable.poweron);
+                item.setTitle("Power ON");
                 ((GlobalDynamicStrings) this.getApplication()).setOnOff(T);
             } else  {
                 item.setIcon(R.drawable.poweroff);
+                item.setTitle("Power OFF");
                 ((GlobalDynamicStrings) this.getApplication()).setOnOff(F);
             }
 
             //GlobalDynamicStrings gds = (GlobalDynamicStrings)this.getApplication();
             showOnOff = (TextView) findViewById(R.id.showOnOff);
             showOnOff.setText("On/Off: " + ((GlobalDynamicStrings) this.getApplication()).getOnOff());
-
         }
+
         return super.onOptionsItemSelected(item);
     }
 

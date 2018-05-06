@@ -10,15 +10,10 @@
         app:showAsAction="always" />
 
     <item
-        android:id="@+id/action_powerStateOff"
+        android:id="@+id/action_powerState"
+        android:checkable="false"
         android:icon="@drawable/poweroff"
-        android:title="@string/action_power"
-        app:showAsAction="always" />
-
-    <item
-        android:id="@+id/action_powerStateOn"
-        android:icon="@drawable/poweron"
-        android:title="@string/action_power"
+        android:title="@string/action_on_off"
         app:showAsAction="always" />
 
 </menu>

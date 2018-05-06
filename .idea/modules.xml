@@ -4,6 +4,7 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/NEI.iml" filepath="$PROJECT_DIR$/NEI.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
+      <module fileurl="file://$PROJECT_DIR$/mpandroidchartlibrary-2-0-9/mpandroidchartlibrary-2-0-9.iml" filepath="$PROJECT_DIR$/mpandroidchartlibrary-2-0-9/mpandroidchartlibrary-2-0-9.iml" />
     </modules>
   </component>
 </project>
