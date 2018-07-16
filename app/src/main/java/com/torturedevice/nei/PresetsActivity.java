@@ -7,11 +7,15 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.NumberPicker;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.TimePicker;
 
@@ -29,6 +33,8 @@ public class PresetsActivity extends AppCompatActivity {
     Context context;
     PendingIntent pending_intent;
     NumberPicker temperaturePresetNumberPicker;
+    Spinner spinner_alarm;
+    ArrayAdapter<CharSequence> adapter_alarm;
 
     // variables
     GlobalDynamicStrings gds = (GlobalDynamicStrings)this.getApplication();
@@ -37,6 +43,8 @@ public class PresetsActivity extends AppCompatActivity {
     String TempSet;
     int min;
     int max;
+    String alarmChosen = "0";
+
 
     Boolean on_off;
     String T = "true";
@@ -75,6 +83,7 @@ public class PresetsActivity extends AppCompatActivity {
         // initialize the start button
         Button preset_on = (Button) findViewById(R.id.preset_on);
 
+        //-----------------------------------------------------------------------------------------------------
         // create an onClick listener to start the preset
         preset_on.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -83,6 +92,8 @@ public class PresetsActivity extends AppCompatActivity {
                 // setting calendar instance with the hour and minute that we picked on the time picker
                 calendar.set(Calendar.HOUR_OF_DAY, preset_timepicker.getHour());
                 calendar.set(Calendar.MINUTE, preset_timepicker.getMinute());
+                calendar.set(Calendar.SECOND, 0);
+                calendar.set(Calendar.MILLISECOND, 0);
 
                 // get the int values of the hour and minute
                 int hour = preset_timepicker.getHour();
@@ -126,7 +137,11 @@ public class PresetsActivity extends AppCompatActivity {
 
                 // put in extra string into my_intent
                 // tells the clock that you pressed the "preset on" button
-                my_intent.putExtra("extra", "preset on");
+                my_intent.putExtra("state", "preset on");
+
+                // put in extra string into my_intent
+                // tells the DataChartActivity the alarm option they picked
+                my_intent.putExtra("alarm", alarmChosen);
 
                 // create a pending intent that delays the intent
                 // until the specified calender time
@@ -134,10 +149,12 @@ public class PresetsActivity extends AppCompatActivity {
                         my_intent, PendingIntent.FLAG_UPDATE_CURRENT);
 
                 // set the preset manager
-                preset_manager.set(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), pending_intent);
+                //preset_manager.set(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), pending_intent);
+                preset_manager.setExact(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), pending_intent);
             }
         });
 
+        //-----------------------------------------------------------------------------------------------------
         // initialize the stop button
         Button preset_off = (Button) findViewById(R.id.preset_off);
 
@@ -163,13 +180,18 @@ public class PresetsActivity extends AppCompatActivity {
 
                 // put extra string into my_intent
                 // tells the clock that you pressed the "preset off' button
-                my_intent.putExtra("extra", "preset off");
+                my_intent.putExtra("state", "preset off");
+
+                // put in extra string into my_intent
+                // tells the DataChartActivity the alarm option they picked
+                my_intent.putExtra("alarm", "0");
 
                 // stop the ringtone
                 sendBroadcast(my_intent);
             }
         });
 
+        //-----------------------------------------------------------------------------------------------------
         // get min and max temperatures set
         SharedPreferences sharedPref = getSharedPreferences("appInfo", Context.MODE_PRIVATE);
         String minimum = sharedPref.getString("minimum", "");
@@ -181,7 +203,6 @@ public class PresetsActivity extends AppCompatActivity {
             min = 20;
             max = 0;
         }
-
 
         //-----------------------------------------------------------------------------------------------------
         // number picker for setting output temperature in preset
@@ -205,6 +226,30 @@ public class PresetsActivity extends AppCompatActivity {
                    }
             });
 
+
+        //-----------------------------------------------------------------------------------------------------
+        // Ringtone Spinner [[spinnerAlarm]] to choose ringtone alarm
+        spinner_alarm = (Spinner) this.findViewById(R.id.spinnerAlarm);
+
+        adapter_alarm = ArrayAdapter.createFromResource(this, R.array.select_alarm_ringtone, android.R.layout.simple_spinner_item);
+        adapter_alarm.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner_alarm.setAdapter(adapter_alarm);
+        spinner_alarm.setSelection(0);
+
+        spinner_alarm.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                // sets chosen alarm
+                alarmChosen = Integer.toString(position);
+
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+
+            }
+        });
+
         //-----------------------------------------------------------------------------------------------------
         // power on/off set
         if (F.equals(((GlobalDynamicStrings) this.getApplication()).getOnOff())) {
@@ -212,6 +257,8 @@ public class PresetsActivity extends AppCompatActivity {
         } else {
             on_off = true;
         }
+
+        //-----------------------------------------------------------------------------------------------------
     }
 
     public void changePresetState() {

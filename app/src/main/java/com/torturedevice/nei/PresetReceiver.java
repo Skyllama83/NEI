@@ -16,15 +16,23 @@ public class PresetReceiver extends BroadcastReceiver {
         Log.e("We are in the receiver.", "Yay!");
 
         // fetch extra stings from the intent
-        String get_your_string = intent.getExtras().getString("extra");
+        String get_state_string = intent.getExtras().getString("state");
 
-        Log.e("What is the key? ", get_your_string);
+        // fetch extra stings from the intent
+        String get_alarm_string = intent.getExtras().getString("alarm");
+
+        Log.e("What is the state? ", get_state_string);
+
+        //Log.e("What is the ringtone? ", get_alarm_string);
 
         // create an intent to the ringtone service
         Intent service_intent = new Intent(context, RingtonePlayingService.class);
 
         // pass the extra string from PresetActivity to the RingtonePlayingService
-        service_intent.putExtra("extra", get_your_string);
+        service_intent.putExtra("state", get_state_string);
+
+        // pass the extra string from PresetActivity to the RingtonePlayingService
+        service_intent.putExtra("alarm", get_alarm_string);
 
         // start the ringtone service
         context.startService(service_intent);

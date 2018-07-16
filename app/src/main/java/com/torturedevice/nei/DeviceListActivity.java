@@ -184,15 +184,11 @@ public class DeviceListActivity extends Activity {
                 break;
             }
         }
-        
-        
+
         devRssiValues.put(device.getAddress(), rssi);
         if (!deviceFound) {
         	deviceList.add(device);
             mEmptyList.setVisibility(View.GONE);
-                 	
-        	
-
             
             deviceAdapter.notifyDataSetChanged();
         }
@@ -239,8 +235,6 @@ public class DeviceListActivity extends Activity {
         }
     };
 
-
-    
     protected void onPause() {
         super.onPause();
         scanLeDevice(false);

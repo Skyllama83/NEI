@@ -48,6 +48,16 @@ public class GlobalDynamicStrings extends Application {
     public void setTempSet(String TempSet) {
         this.TempSet = TempSet;
     }
+
+    // the state of ready
+    private String ReadyState = "false";
+    public String getReadyState() {
+        return ReadyState;
+    }
+    public void setReadyState(String ReadyState) {
+        this.ReadyState = ReadyState;
+    }
+
 }
 
     /*GlobalDynamicStrings gds = (GlobalDynamicStrings)getActivity().getApplication();

@@ -19,11 +19,17 @@ public class WelcomeScreenActivity extends AppCompatActivity {
         setContentView(R.layout.activity_welcome_screen);
         getSupportActionBar().hide();
 
+        //-----------------------------------------------------------------------------------------------------
+
         SharedPreferences sharedPref = this.getSharedPreferences("profileInfo", Context.MODE_PRIVATE);
         String username = sharedPref.getString("username", "");
 
         welcome = (TextView) this.findViewById(R.id.welcome);
-        welcome.setText("Welcome " + username + "!");
+        if (username == "") {
+            welcome.setText("Welcome!");
+        } else {
+            welcome.setText("Welcome " + username + "!");
+        }
 
         new Handler().postDelayed(new Runnable() {
             @Override

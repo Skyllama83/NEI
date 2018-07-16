@@ -31,11 +31,13 @@
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="Torture Device"
+        android:label="Temperature Device"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
@@ -58,8 +60,7 @@
         <activity
             android:name=".DataChartActivity"
             android:label="Data"
-            android:parentActivityName=".HomeActivity"
-            android:screenOrientation="portrait">
+            android:parentActivityName=".HomeActivity">
 
             <!-- The meta-data tag is required if you support API level 15 and lower -->
             <meta-data
@@ -128,6 +129,7 @@
         <activity android:name=".DeviceListActivity" android:label="@string/app_name" android:theme="@android:style/Theme.Dialog"/>
         <service android:enabled="true" android:name=".UartService" />
         <!-- ///////////////////////////////////////////////////////////////// -->
+        <service android:enabled="true" android:name=".SensorServiceIntent" />
     </application>
 
 </manifest>

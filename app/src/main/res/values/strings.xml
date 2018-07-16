@@ -93,6 +93,13 @@
         <item>-10</item>
     </string-array>
 
+    // for PresetsActivity
+    <string-array name="select_alarm_ringtone">
+        <item>-- Select an Alarm --</item>
+        <item>"       Ringtone 1      "</item>
+        <item>"       Ringtone 2      "</item>
+    </string-array>
+
     // for ProfileFragment Buttons and Plain Text
     <string name="edit_username">Enter a Username</string>
     <string name="edit_email">Enter an Email</string>

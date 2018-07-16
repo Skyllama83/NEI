@@ -22,9 +22,6 @@ public class RingtonePlayingService extends Service {
     int min;
     int max;
 
-
-
-
     // notification
     NotificationCompat.Builder notification;
     private static final int uniqueID = 69830;
@@ -40,7 +37,8 @@ public class RingtonePlayingService extends Service {
         Log.i("LocalService", "Received start id " + startId + ": " + intent);
 
         // fetch the extra string values
-        String state = intent.getExtras().getString("extra");
+        String state = intent.getExtras().getString("state");
+        String alarm = intent.getExtras().getString("alarm");
 
         Log.e("Ring state: extra is ", state);
 
@@ -85,7 +83,21 @@ public class RingtonePlayingService extends Service {
             Log.e("there is no music, ", "and you want start");
 
             // create an instance of the media player
-            media_song = MediaPlayer.create(this, R.raw.pokemonthemesongoriginal);
+            assert alarm != null;
+            switch(alarm) {
+                case "0":
+                    media_song = MediaPlayer.create(this, R.raw.silence);
+                    break;
+                case "1":
+                    media_song = MediaPlayer.create(this, R.raw.katyperryhotncoldringtone);
+                    break;
+                case "2":
+                    media_song = MediaPlayer.create(this, R.raw.pokemonthemesongoriginal);
+                    break;
+                default:
+                    media_song = MediaPlayer.create(this, R.raw.silence);
+            }
+
             // start the ringtone
             //media_song.setLooping(true);
             media_song.start();

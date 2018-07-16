@@ -66,7 +66,7 @@ public class AppFragment extends Fragment{
         String maxSpin = maximum;
 
         //-----------------------------------------------------------------------------------------------------
-
+        // [[spinnerMin]] settings
         spinner_min = (Spinner) view.findViewById(R.id.spinnerMin);
 
         adapter_min = ArrayAdapter.createFromResource(getActivity(), R.array.select_temperature_min, android.R.layout.simple_spinner_item);
@@ -79,6 +79,13 @@ public class AppFragment extends Fragment{
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 minString = Long.toString(parent.getItemIdAtPosition(position + 10));
                 minLong = parent.getItemIdAtPosition(position + 10);
+
+                // set the min and default Payload to 10 [0]
+                SharedPreferences sharedPref = getContext().getSharedPreferences("appInfo", Context.MODE_PRIVATE);
+                SharedPreferences.Editor editor = sharedPref.edit();
+                editor.putString("minimum", minString);
+                editor.apply();
+                ((GlobalDynamicStrings) getActivity().getApplication()).setPayload("10");
             }
 
             @Override
@@ -88,6 +95,7 @@ public class AppFragment extends Fragment{
         });
 
         //-----------------------------------------------------------------------------------------------------
+        // [[spinnerMax]] settings
         spinner_max = (Spinner) view.findViewById(R.id.spinnerMax);
 
         adapter_max = ArrayAdapter.createFromResource(getActivity(), R.array.select_temperature_max, android.R.layout.simple_spinner_item);
@@ -100,6 +108,13 @@ public class AppFragment extends Fragment{
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 maxString = Long.toString(parent.getItemIdAtPosition(position));
                 maxLong = parent.getItemIdAtPosition(position);
+
+                // set the max and default Payload to 10 [0]
+                SharedPreferences sharedPref = getContext().getSharedPreferences("appInfo", Context.MODE_PRIVATE);
+                SharedPreferences.Editor editor = sharedPref.edit();
+                editor.putString("maximum", maxString);
+                editor.apply();
+                ((GlobalDynamicStrings) getActivity().getApplication()).setPayload("10");
             }
 
             @Override
@@ -122,6 +137,9 @@ public class AppFragment extends Fragment{
             }
         });
 
+
+        saveALL.setVisibility(view.GONE);
+        /*
         //-----------------------------------------------------------------------------------------------------
         // receive input from the Plain Text username and email and saves them to Shared Preferences
         saveALL.setOnClickListener(new View.OnClickListener() {
@@ -143,6 +161,7 @@ public class AppFragment extends Fragment{
                 }
             }
         });
+        */
 
         //-----------------------------------------------------------------------------------------------------
 

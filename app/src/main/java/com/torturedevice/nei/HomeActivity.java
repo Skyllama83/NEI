@@ -19,6 +19,7 @@ import android.os.IBinder;
 import android.os.Message;
 import android.os.SystemClock;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.v13.app.ActivityCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AlertDialog;
@@ -79,9 +80,11 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
 
     // variables
     Boolean on_off;
+    boolean ready;
     String T = "true";
     String F = "false";
     String Payload;
+    String userPayload;
     int min;
     int max;
 
@@ -104,13 +107,21 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
     private ArrayAdapter<String> listAdapter;
     //private Button btnConnectDisconnect,btnSend;
     private EditText edtMessage;
-    boolean ready = false;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_home);
 
+        Log.d(TAG, "onCreate()");
+
+        //-----------------------------------------------------------------------------------------------------
+        // Service Intent to create .txt file
+        Intent intentSensor =  new Intent(this, SensorServiceIntent.class);
+        startService(intentSensor);
+
+        //-----------------------------------------------------------------------------------------------------
         dataChartImageButton = (ImageButton) findViewById(R.id.image_button_data_chart);
         presetsImageButton = (ImageButton) findViewById(R.id.image_button_presets);
         //temperatureNumberPicker = null;
@@ -126,6 +137,7 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
             disclaimer();
         }
 
+        //-----------------------------------------------------------------------------------------------------
         // get min and max temperatures set
         SharedPreferences sharedPrefMinMax = getSharedPreferences("appInfo", Context.MODE_PRIVATE);
         String minimum = sharedPrefMinMax.getString("minimum", "");
@@ -138,8 +150,12 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
             max = 0;
         }
 
+        //-----------------------------------------------------------------------------------------------------
         // set Payload
         Payload = Integer.toString(Integer.valueOf(((GlobalDynamicStrings) this.getApplication()).getPayload()) - max );
+
+        // set userPayload
+        setUserPayload();
 
         //-----------------------------------------------------------------------------------------------------
         // power on/off set
@@ -149,6 +165,11 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
             on_off = true;
         }
 
+        //-----------------------------------------------------------------------------------------------------
+        // ready set
+        ready = Boolean.valueOf(((GlobalDynamicStrings) this.getApplication()).getReadyState());
+
+        //-----------------------------------------------------------------------------------------------------
         // power on/off debugger
         showOnOff = (TextView) findViewById(R.id.showOnOff);
         showOnOff.setText("On/Off: " + ((GlobalDynamicStrings) this.getApplication()).getOnOff());
@@ -174,7 +195,7 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
         });
 
         //-----------------------------------------------------------------------------------------------------
-        // number picker for setting output temperature
+        // [[number picker]] for setting output temperature
         temperatureNumberPicker = (NumberPicker)findViewById(R.id.number_picker_temperature);
         String[] values = this.getResources().getStringArray(R.array.select_temperature);
         ArrayList<String> newValues = new ArrayList<String>(Arrays.asList(values));
@@ -184,14 +205,20 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
         newValues.subList((min-max+1), (20-max+1)).clear();
         temperatureNumberPicker.setMinValue(0);
         temperatureNumberPicker.setMaxValue(newValues.size()-1);
-        temperatureNumberPicker.setValue(Integer.valueOf(((GlobalDynamicStrings) this.getApplication()).getPayload()) - max);
+        if (((GlobalDynamicStrings) this.getApplication()).getOnOff() == "true") {
+            temperatureNumberPicker.setValue(Integer.valueOf(((GlobalDynamicStrings) this.getApplication()).getPayload()) - max);
+            temperatureNumberPicker.setEnabled(true);
+        } else {
+            temperatureNumberPicker.setValue(10-max);
+            temperatureNumberPicker.setEnabled(false);
+        }
         temperatureNumberPicker.setDisplayedValues(newValues.toArray(new String[0]));
         temperatureNumberPicker.setDescendantFocusability(NumberPicker.FOCUS_BLOCK_DESCENDANTS);
         temperatureNumberPicker.setWrapSelectorWheel(false);
 
         // number picker debugger set from dynamic memory
         showPayload = (TextView) findViewById(R.id.showPayload);
-        showPayload.setText("Payload: " + ((GlobalDynamicStrings) this.getApplication()).getPayload());
+        showPayload.setText("Payload: " + ((GlobalDynamicStrings) this.getApplication()).getPayload()  + " [" + userPayload + "]");
 
         // number picker listener
         temperatureNumberPicker.setOnValueChangedListener(new NumberPicker.OnValueChangeListener() {
@@ -199,7 +226,8 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
             public void onValueChange(NumberPicker picker, int oldVal, int newVal) {
                 Payload = Integer.toString(newVal + max);
                 changePayload();
-                showPayload.setText("Payload: " + Payload);
+                setUserPayload();
+                showPayload.setText("Payload: " + Payload + " [" + userPayload + "]");
                 if (ready) {
                     sendData();
                 }
@@ -207,18 +235,26 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
         });
 
         //-----------------------------------------------------------------------------------------------------
+        // set TX
+        showTX = (TextView) findViewById(R.id.showTX);
+        showTX.setText("TX: ");
+
+        //-----------------------------------------------------------------------------------------------------
         // warning button
         onWarningButtonClickListener();
 
         //-----------------------------------------------------------------------------------------------------
         //-----------------------------------------------------------------------------------------------------
-        // BLE things
+        // [[Connect/Disconnect]] form BLE UART
         connectdisconnectDEVICE.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                permissionBLE();
+                //permissionBLE();
+                requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION}, BLE_REQUEST);
                 if (ready) {
                     sendData();
+                    Payload = Integer.toString(10);
+                    changePayload();
                 }
             }
         });
@@ -296,6 +332,8 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
             sendData();
         }
 
+
+
         //-----------------------------------------------------------------------------------------------------
         //-----------------------------------------------------------------------------------------------------
     }
@@ -309,19 +347,19 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
         if (((GlobalDynamicStrings) this.getApplication()).getOnOff() == "true") {
             // get payload message to send
             //EditText editText = (EditText) findViewById(R.id.sendText);
-            String message;
+            String messageON;
             if (Integer.valueOf(Payload) < 10) {
-                message = ("0" + Payload);
+                messageON = ("0" + Payload);
             } else {
-                message = (Payload);
+                messageON = (Payload);
             }
             Log.d(TAG, "Payload: " + Payload);
             byte[] value;
             try {
                 //send data to service
-                value = message.getBytes("UTF-8");
+                value = messageON.getBytes("UTF-8");
                 mService.writeRXCharacteristic(value);
-                showTX.setText("TX: " + message);
+                showTX.setText("TX: " + messageON);
                 //Update the log with time stamp
                 //String currentDateTimeString = DateFormat.getTimeInstance().format(new Date());
                 //listAdapter.add("["+currentDateTimeString+"] TX: "+ message);
@@ -331,26 +369,42 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
                 // TODO Auto-generated catch block
                 e.printStackTrace();
             }
+        } else {
+            String messageOFF;
+            messageOFF = "10";
+            Log.d(TAG, "Payload: " + Payload);
+            byte[] value;
+            try {
+                //send data to service
+                value = messageOFF.getBytes("UTF-8");
+                mService.writeRXCharacteristic(value);
+                showTX.setText("TX: " + messageOFF);
+            } catch (UnsupportedEncodingException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
         }
+        Log.d(TAG, "sendData()");
     }
 
     //UART service connected/disconnected
     private ServiceConnection mServiceConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className, IBinder rawBinder) {
             mService = ((UartService.LocalBinder) rawBinder).getService();
-            Log.d(TAG, "onServiceConnected mService= " + mService);
+            Log.d(TAG, "onServiceConnected mService= " + mService + " [ServiceConnection]");
             if (!mService.initialize()) {
                 Log.e(TAG, "Unable to initialize Bluetooth");
                 finish();
             }
-
         }
-
         public void onServiceDisconnected(ComponentName classname) {
             ////     mService.disconnect(mDevice);
             mService = null;
+            Log.d(TAG, "onServiceConnected mService = Disconnected" + " [ServiceConnection]");
         }
     };
+
+
 
     private Handler mHandler = new Handler() {
         @Override
@@ -374,17 +428,22 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
                         //String currentDateTimeString = DateFormat.getTimeInstance().format(new Date());
                         Log.d(TAG, "UART_CONNECT_MSG");
                         connectdisconnectDEVICE.setText("Disconnect form Device");
+                        //sendData();
                         //edtMessage.setEnabled(true);
                         //btnSend.setEnabled(true);
                         ((TextView) findViewById(R.id.deviceSelect)).setText(mDevice.getName()+ " - ready");
                         ready = true;
+                        setReadyGSD(ready);
+                        //((GlobalDynamicStrings) getActivity().getApplication()).setPayload("10");
+
+                        //.setReadyState("true");
+
                         //listAdapter.add("["+currentDateTimeString+"] Connected to: "+ mDevice.getName());
                         //messageListView.smoothScrollToPosition(listAdapter.getCount() - 1);
                         mState = UART_PROFILE_CONNECTED;
                     }
                 });
             }
-
             //*********************//
             if (action.equals(UartService.ACTION_GATT_DISCONNECTED)) {
                 runOnUiThread(new Runnable() {
@@ -396,6 +455,7 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
                         //btnSend.setEnabled(false);
                         ((TextView) findViewById(R.id.deviceSelect)).setText("Not Connected");
                         ready = false;
+                        setReadyGSD(ready);
                         //listAdapter.add("["+currentDateTimeString+"] Disconnected to: "+ mDevice.getName());
                         mState = UART_PROFILE_DISCONNECTED;
                         mService.close();
@@ -404,8 +464,6 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
                     }
                 });
             }
-
-
             //*********************//
             if (action.equals(UartService.ACTION_GATT_SERVICES_DISCOVERED)) {
                 mService.enableTXNotification();
@@ -436,14 +494,18 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
                 showMessage("Device doesn't support UART. Disconnecting");
                 mService.disconnect();
             }
-
-
         }
     };
 
     private void service_init() {
-        Intent bindIntent = new Intent(this, UartService.class);
-        bindService(bindIntent, mServiceConnection, Context.BIND_AUTO_CREATE);
+        //Intent bindIntent = new Intent(this, UartService.class);
+        //bindService(bindIntent, mServiceConnection, Context.BIND_AUTO_CREATE);
+        Log.d(TAG, "service_init()");
+
+        Intent intent = new Intent(this, UartService.class);
+
+        bindService(intent, mServiceConnection, Context.BIND_AUTO_CREATE);
+        startService(intent);
 
         LocalBroadcastManager.getInstance(this).registerReceiver(UARTStatusChangeReceiver, makeGattUpdateIntentFilter());
     }
@@ -458,6 +520,8 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
     }
     @Override
     public void onStart() {
+        Log.d(TAG, "onStart()");
+        //service_init();
         super.onStart();
     }
 
@@ -466,6 +530,9 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
         super.onDestroy();
         Log.d(TAG, "onDestroy()");
 
+
+
+
         try {
             LocalBroadcastManager.getInstance(this).unregisterReceiver(UARTStatusChangeReceiver);
         } catch (Exception ignore) {
@@ -473,32 +540,32 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
         }
         unbindService(mServiceConnection);
         mService.stopSelf();
-        mService= null;
+         mService= null;
 
     }
 
     @Override
     protected void onStop() {
-        Log.d(TAG, "onStop");
+        Log.d(TAG, "onStop()");
         super.onStop();
     }
 
     @Override
     protected void onPause() {
-        Log.d(TAG, "onPause");
+        Log.d(TAG, "onPause()");
         super.onPause();
     }
 
     @Override
     protected void onRestart() {
         super.onRestart();
-        Log.d(TAG, "onRestart");
+        Log.d(TAG, "onRestart()");
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        Log.d(TAG, "onResume");
+        Log.d(TAG, "onResume()");
         if (!mBtAdapter.isEnabled()) {
             Log.i(TAG, "onResume - BT not enabled yet");
             Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
@@ -509,11 +576,13 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
+        Log.d(TAG, "onConfigurationChanged()");
         super.onConfigurationChanged(newConfig);
     }
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        Log.d(TAG, "onActivityResults()");
         switch (requestCode) {
 
             case REQUEST_SELECT_DEVICE:
@@ -525,6 +594,7 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
                     Log.d(TAG, "... onActivityResultdevice.address==" + mDevice + "mserviceValue" + mService);
                     ((TextView) findViewById(R.id.deviceSelect)).setText(mDevice.getName()+ " - connecting");
                     ready = false;
+                    setReadyGSD(ready);
                     mService.connect(deviceAddress);
 
 
@@ -556,17 +626,22 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
 
     private void showMessage(String msg) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
-
     }
 
     @Override
     public void onBackPressed() {
+        Log.d(TAG, "onBackPressed()");
         if (mState == UART_PROFILE_CONNECTED) {
             Intent startMain = new Intent(Intent.ACTION_MAIN);
             startMain.addCategory(Intent.CATEGORY_HOME);
             startMain.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(startMain);
             showMessage("nRFUART's running in background.\n             Disconnect to exit");
+        } else {
+            Intent startMain = new Intent(Intent.ACTION_MAIN);
+            startMain.addCategory(Intent.CATEGORY_HOME);
+            startMain.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(startMain);
         }
         /*
         else {
@@ -596,6 +671,7 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
     // creates the action bar menu ----------------------------------------------------------------------------
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
+        Log.d(TAG, "onCreateOptionsMenu()");
         // inflate the menu (settings); adds items to action bar if present
         getMenuInflater().inflate(R.menu.menu_home, menu);
         // set correct powerState icon
@@ -613,6 +689,7 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
     // handles action bar icon selects ------------------------------------------------------------------------
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
+        Log.d(TAG, "onOptionsItemSelected()");
         // once menu item pressed it jumped to activity
         if (item.getItemId() == R.id.action_settings) {
             startActivity(new Intent(this, SettingsActivity.class));
@@ -627,31 +704,56 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
                 item.setIcon(R.drawable.poweron);
                 item.setTitle("Power ON");
                 ((GlobalDynamicStrings) this.getApplication()).setOnOff(T);
+                temperatureNumberPicker.setValue(Integer.valueOf(((GlobalDynamicStrings) this.getApplication()).getPayload()) - max);
+                temperatureNumberPicker.setEnabled(true);
             } else  {
                 item.setIcon(R.drawable.poweroff);
                 item.setTitle("Power OFF");
                 ((GlobalDynamicStrings) this.getApplication()).setOnOff(F);
+                temperatureNumberPicker.setValue(10-max);
+                temperatureNumberPicker.setEnabled(false);
             }
 
             //GlobalDynamicStrings gds = (GlobalDynamicStrings)this.getApplication();
             showOnOff = (TextView) findViewById(R.id.showOnOff);
             showOnOff.setText("On/Off: " + ((GlobalDynamicStrings) this.getApplication()).getOnOff());
+
+            if (ready) {
+                // update data sent
+                sendData();
+            }
         }
 
         return super.onOptionsItemSelected(item);
     }
 
     public void changePayload() {
+        Log.d(TAG, "changePayload()");
         if (Integer.valueOf(Payload) < max){
             ((GlobalDynamicStrings) this.getApplication()).setPayload(Integer.toString(max));
             Payload = Integer.toString(max);
+            setUserPayload();
         }
         else if (Integer.valueOf(Payload) > min){
             ((GlobalDynamicStrings) this.getApplication()).setPayload(Integer.toString(min));
             Payload = Integer.toString(min);
+            setUserPayload();
         }
         else {
             ((GlobalDynamicStrings) this.getApplication()).setPayload(Payload);
+        }
+    }
+
+    public void setUserPayload() {
+        Log.d(TAG, "setUserPayload()");
+        if (Integer.valueOf(Payload) < 10){
+            userPayload = Integer.toString(Math.abs(Integer.valueOf(Payload) - 10));
+        }
+        else if (Integer.valueOf(Payload) > 10){
+            userPayload = Integer.toString(-1*(Integer.valueOf(Payload) - 10));
+        }
+        else {
+            userPayload = "0";
         }
     }
 
@@ -696,12 +798,23 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
         alert.show();
     }
 
+
+
+
+
+
+
+
+
+
+    /*
     // checks BLE permissions ---------------------------------------------------------------------------------
     public void permissionBLE() {
+        Log.d(TAG, "permissionsBLE()");
         // check if the BLE permission is already available
         if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             // BLE permission is already available
-            Toast.makeText(this, "BLE Location permission has already been granted.", Toast.LENGTH_SHORT).show();
+            //Toast.makeText(this, "BLE Location permission has already been granted.", Toast.LENGTH_SHORT).show();
             connectBLE();
         } else {
             // BLE permission has not been granted
@@ -720,6 +833,7 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
     // checks results of BLE permissions ----------------------------------------------------------------------
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        Log.d(TAG, "onRequestPermissionsResults()");
         permissionBLE  = permissions[0];
 
         if (requestCode == BLE_REQUEST) {
@@ -728,7 +842,7 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
             // check if the only required permission has been granted
             if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 // BLE permission has been granted
-                Toast.makeText(this, "BLE permission has been granted by the user.", Toast.LENGTH_SHORT).show();
+                //Toast.makeText(this, "BLE permission has been granted by the user.", Toast.LENGTH_SHORT).show();
                 connectBLE();
             }
             if ( !(shouldShowRequestPermissionRationale(permissionBLE)) ) {
@@ -739,7 +853,54 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
         } else {
             super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         }
+    }*/
+
+
+
+    // checks BLE permissions ---------------------------------------------------------------------------------
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @Nullable String[] permissions, @Nullable int[] grantResults) {
+        Log.d(TAG, "onRequestPermissionsResults()");
+        // check if the Files permission is already available
+        if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            // Files permission has already been granted
+            //Toast.makeText(this, "We gucci.", Toast.LENGTH_SHORT).show();
+            connectBLE();
+
+        } else {
+            // BLE permission has not been granted
+
+            // request BLE permission
+            //ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, FILES_REQUEST);
+
+            // provide additional rationale to the user to get them to grant access
+            if (shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_COARSE_LOCATION)) {
+
+                //SystemClock.sleep(2000);
+                Toast.makeText(this, "Location permission is needed to connect to the BLE device.", Toast.LENGTH_LONG).show();
+                //finish();
+            } else if (!shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_COARSE_LOCATION)) {
+
+                //SystemClock.sleep(2000);
+                Toast.makeText(this, "Set permission in Settings -> Apps.", Toast.LENGTH_LONG).show();
+                //finish();
+            }
+        }
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     // enable BLE, if already enabled start connection process
     public void connectBLE() {
@@ -765,18 +926,9 @@ public class HomeActivity extends AppCompatActivity implements RadioGroup.OnChec
         }
     }
 
-
-
-    //-----------------------------------------------------------------------------------------------------
-    //-----------------------------------------------------------------------------------------------------
-
-
-
-
-
-
-
-
+    public void setReadyGSD(Boolean bool) {
+        ((GlobalDynamicStrings) this.getApplication()).setReadyState(Boolean.toString(bool));
+    }
 
 
 
